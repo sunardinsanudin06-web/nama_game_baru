@@ -1,7 +1,9 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
   runApp(const GachaRPGApp());
 }
 
@@ -26,15 +28,12 @@ class GachaRPGApp extends StatelessWidget {
   }
 }
 
-// ----------------------------------------------------
-// MODELS & DATABASE
-// ----------------------------------------------------
 enum Rarity { SSR, SR, R }
 
 class Equipment {
   final String id;
   final String name;
-  final String type; // 'Weapon' or 'Armor'
+  final String type;
   final int bonusAtk;
   final int bonusHp;
   final Rarity rarity;
@@ -141,9 +140,23 @@ int hpPotions = 3;
 List<HeroItem> playerInventory = [allHeroesPool[6].copy()];
 List<Equipment> equipmentInventory = [equipmentPool[4], equipmentPool[5]];
 
-// ----------------------------------------------------
-// MAIN HOME SCREEN
-// ----------------------------------------------------
+// HELPER SAVE & LOAD
+Future<void> saveGameData() async {
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.setInt('gems', playerGems);
+  await prefs.setInt('gold', playerGold);
+  await prefs.setInt('pity', pityCounter);
+  await prefs.setInt('potions', hpPotions);
+}
+
+Future<void> loadGameData() async {
+  final prefs = await SharedPreferences.getInstance();
+  playerGems = prefs.getInt('gems') ?? 2000;
+  playerGold = prefs.getInt('gold') ?? 10000;
+  pityCounter = prefs.getInt('pity') ?? 0;
+  hpPotions = prefs.getInt('potions') ?? 3;
+}
+
 class MainHomeScreen extends StatefulWidget {
   const MainHomeScreen({super.key});
 
@@ -154,7 +167,16 @@ class MainHomeScreen extends StatefulWidget {
 class _MainHomeScreenState extends State<MainHomeScreen> {
   int _currentIndex = 0;
 
-  void _updateState() => setState(() {});
+  @override
+  void initState() {
+    super.initState();
+    loadGameData().then((_) => setState(() {}));
+  }
+
+  void _updateState() {
+    saveGameData();
+    setState(() {});
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -216,9 +238,6 @@ class _MainHomeScreenState extends State<MainHomeScreen> {
   }
 }
 
-// ----------------------------------------------------
-// 1. SUMMON SCREEN (GACHA)
-// ----------------------------------------------------
 class SummonScreen extends StatefulWidget {
   final VoidCallback onStateChanged;
   const SummonScreen({super.key, required this.onStateChanged});
@@ -257,7 +276,7 @@ class _SummonScreenState extends State<SummonScreen> {
     int cost = count == 1 ? 160 : 1500;
     if (playerGems < cost) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Gems tidak cukup! Selesaikan Battle atau beli di Shop.'), backgroundColor: Colors.redAccent),
+        const SnackBar(content: Text('Gems tidak cukup!'), backgroundColor: Colors.redAccent),
       );
       return;
     }
@@ -298,7 +317,6 @@ class _SummonScreenState extends State<SummonScreen> {
                   end: Alignment.bottomRight,
                 ),
                 border: Border.all(color: const Color(0xFFFFD700).withOpacity(0.5), width: 2),
-                boxShadow: [BoxShadow(color: const Color(0xFFFFD700).withOpacity(0.15), blurRadius: 20)],
               ),
               child: Padding(
                 padding: const EdgeInsets.all(24.0),
@@ -378,9 +396,6 @@ class _SummonScreenState extends State<SummonScreen> {
   }
 }
 
-// ----------------------------------------------------
-// GACHA ANIMATION & REVEAL
-// ----------------------------------------------------
 class GachaRevealScreen extends StatefulWidget {
   final List<HeroItem> results;
   const GachaRevealScreen({super.key, required this.results});
@@ -460,9 +475,6 @@ class _GachaRevealScreenState extends State<GachaRevealScreen> {
   }
 }
 
-// ----------------------------------------------------
-// 2. HERO COLLECTION & EQUIPMENT MANAGEMENT
-// ----------------------------------------------------
 class CollectionScreen extends StatefulWidget {
   final VoidCallback onStateChanged;
   const CollectionScreen({super.key, required this.onStateChanged});
@@ -505,7 +517,7 @@ class _CollectionScreenState extends State<CollectionScreen> {
               if (availableEq.isEmpty)
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: 20),
-                  child: Text('Tidak ada perlengkapan tersedia. Beli Chest di Shop!', style: TextStyle(color: Colors.white54)),
+                  child: Text('Tidak ada perlengkapan tersedia.', style: TextStyle(color: Colors.white54)),
                 )
               else
                 Flexible(
@@ -616,9 +628,6 @@ class _CollectionScreenState extends State<CollectionScreen> {
   }
 }
 
-// ----------------------------------------------------
-// 3. TURN-BASED BATTLE
-// ----------------------------------------------------
 class BattleScreen extends StatefulWidget {
   final VoidCallback onStateChanged;
   const BattleScreen({super.key, required this.onStateChanged});
@@ -770,9 +779,6 @@ class _BattleScreenState extends State<BattleScreen> {
   }
 }
 
-// ----------------------------------------------------
-// 4. ITEM SHOP & TREASURE CHEST
-// ----------------------------------------------------
 class ShopScreen extends StatefulWidget {
   final VoidCallback onStateChanged;
   const ShopScreen({super.key, required this.onStateChanged});
