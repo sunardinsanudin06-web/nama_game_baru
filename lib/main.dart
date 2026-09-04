@@ -111,6 +111,24 @@ class HeroItem {
   }
 }
 
+class BossEnemy {
+  final String name;
+  final int hp;
+  final int atk;
+  final int gemReward;
+  final int goldReward;
+  final Color color;
+
+  BossEnemy({
+    required this.name,
+    required this.hp,
+    required this.atk,
+    required this.gemReward,
+    required this.goldReward,
+    required this.color,
+  });
+}
+
 final List<HeroItem> allHeroesPool = [
   HeroItem(id: 'ssr_1', name: 'Aurelia', title: 'Sun Empress', rarity: Rarity.SSR, themeColor: const Color(0xFFFFD700), baseHp: 1200, baseAtk: 280, baseDef: 150),
   HeroItem(id: 'ssr_2', name: 'Ignis', title: 'Inferno Dragon', rarity: Rarity.SSR, themeColor: const Color(0xFFFF4500), baseHp: 1100, baseAtk: 320, baseDef: 120),
@@ -132,11 +150,23 @@ final List<Equipment> equipmentPool = [
   Equipment(id: 'eq_6', name: 'Leather Vest', type: 'Armor', bonusAtk: 0, bonusHp: 150, rarity: Rarity.R),
 ];
 
+final List<BossEnemy> bossList = [
+  BossEnemy(name: 'Goblin King (Easy)', hp: 800, atk: 50, gemReward: 100, goldReward: 300, color: Colors.greenAccent),
+  BossEnemy(name: 'Demon Lord (Medium)', hp: 1800, atk: 90, gemReward: 250, goldReward: 700, color: Colors.orangeAccent),
+  BossEnemy(name: 'Abyssal Dragon (Hard)', hp: 3500, atk: 150, gemReward: 500, goldReward: 1500, color: Colors.purpleAccent),
+];
+
 // STATE GLOBAL GAME
 int playerGems = 2000;
 int playerGold = 10000;
 int pityCounter = 0;
 int hpPotions = 3;
+
+// QUEST TRACKING
+bool qSummonDone = false;
+bool qBattleDone = false;
+bool qShopDone = false;
+
 List<HeroItem> playerInventory = [allHeroesPool[6].copy()];
 List<Equipment> equipmentInventory = [equipmentPool[4], equipmentPool[5]];
 
@@ -147,6 +177,9 @@ Future<void> saveGameData() async {
   await prefs.setInt('gold', playerGold);
   await prefs.setInt('pity', pityCounter);
   await prefs.setInt('potions', hpPotions);
+  await prefs.setBool('q_summon', qSummonDone);
+  await prefs.setBool('q_battle', qBattleDone);
+  await prefs.setBool('q_shop', qShopDone);
 }
 
 Future<void> loadGameData() async {
@@ -155,6 +188,9 @@ Future<void> loadGameData() async {
   playerGold = prefs.getInt('gold') ?? 10000;
   pityCounter = prefs.getInt('pity') ?? 0;
   hpPotions = prefs.getInt('potions') ?? 3;
+  qSummonDone = prefs.getBool('q_summon') ?? false;
+  qBattleDone = prefs.getBool('q_battle') ?? false;
+  qShopDone = prefs.getBool('q_shop') ?? false;
 }
 
 class MainHomeScreen extends StatefulWidget {
@@ -185,6 +221,7 @@ class _MainHomeScreenState extends State<MainHomeScreen> {
       CollectionScreen(onStateChanged: _updateState),
       BattleScreen(onStateChanged: _updateState),
       ShopScreen(onStateChanged: _updateState),
+      QuestScreen(onStateChanged: _updateState),
     ];
 
     return Scaffold(
@@ -214,6 +251,7 @@ class _MainHomeScreenState extends State<MainHomeScreen> {
           BottomNavigationBarItem(icon: Icon(Icons.shield), label: 'Heroes'),
           BottomNavigationBarItem(icon: Icon(Icons.sports_esports), label: 'Battle'),
           BottomNavigationBarItem(icon: Icon(Icons.store), label: 'Shop'),
+          BottomNavigationBarItem(icon: Icon(Icons.assignment), label: 'Quests'),
         ],
       ),
     );
@@ -283,6 +321,7 @@ class _SummonScreenState extends State<SummonScreen> {
 
     setState(() {
       playerGems -= cost;
+      qSummonDone = true;
     });
 
     List<HeroItem> pulledHeroes = [];
@@ -638,12 +677,20 @@ class BattleScreen extends StatefulWidget {
 
 class _BattleScreenState extends State<BattleScreen> {
   HeroItem? activeHero;
-  int enemyHp = 1500;
-  int enemyMaxHp = 1500;
+  int selectedBossIdx = 0;
+  late int enemyHp;
+  late int enemyMaxHp;
   int playerHp = 1000;
   int playerMaxHp = 1000;
   bool inBattle = false;
-  String log = 'Siapkan Hero kamu untuk bertarung!';
+  String log = 'Pilih Boss dan mulai bertarung!';
+
+  @override
+  void initState() {
+    super.initState();
+    enemyMaxHp = bossList[selectedBossIdx].hp;
+    enemyHp = enemyMaxHp;
+  }
 
   void _startBattle() {
     if (playerInventory.isEmpty) return;
@@ -651,10 +698,10 @@ class _BattleScreenState extends State<BattleScreen> {
       activeHero = playerInventory.first;
       playerMaxHp = activeHero!.currentHp;
       playerHp = playerMaxHp;
-      enemyMaxHp = 1500;
+      enemyMaxHp = bossList[selectedBossIdx].hp;
       enemyHp = enemyMaxHp;
       inBattle = true;
-      log = 'Pertempuran Dimulai!';
+      log = 'Pertempuran Melawan ${bossList[selectedBossIdx].name} Dimulai!';
     });
   }
 
@@ -662,24 +709,26 @@ class _BattleScreenState extends State<BattleScreen> {
     if (!inBattle || activeHero == null) return;
 
     final rand = Random();
+    final boss = bossList[selectedBossIdx];
     int dmg = activeHero!.currentAtk + rand.nextInt(40);
-    int enemyDmg = 80 + rand.nextInt(30);
+    int enemyDmg = boss.atk + rand.nextInt(20);
 
     setState(() {
       enemyHp = max(0, enemyHp - dmg);
-      log = '${activeHero!.name} menyerang Musuh sebesar $dmg DMG!';
+      log = '${activeHero!.name} menyerang ${boss.name} sebesar $dmg DMG!';
 
       if (enemyHp <= 0) {
         inBattle = false;
-        playerGems += 200;
-        playerGold += 500;
-        log = 'MENANG! Kamu mendapat 200 Gems & 500 Gold!';
+        qBattleDone = true;
+        playerGems += boss.gemReward;
+        playerGold += boss.goldReward;
+        log = 'MENANG! Mendapat ${boss.gemReward} Gems & ${boss.goldReward} Gold!';
         widget.onStateChanged();
         return;
       }
 
       playerHp = max(0, playerHp - enemyDmg);
-      log += '\nMusuh membalas $enemyDmg DMG!';
+      log += '\n${boss.name} membalas $enemyDmg DMG!';
 
       if (playerHp <= 0) {
         inBattle = false;
@@ -700,10 +749,36 @@ class _BattleScreenState extends State<BattleScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final currentBoss = bossList[selectedBossIdx];
+
     return Padding(
       padding: const EdgeInsets.all(16.0),
       child: Column(
         children: [
+          if (!inBattle) ...[
+            DropdownButton<int>(
+              value: selectedBossIdx,
+              dropdownColor: const Color(0xFF16122C),
+              isExpanded: true,
+              style: const TextStyle(color: Colors.amber, fontWeight: FontWeight.bold),
+              items: List.generate(bossList.length, (idx) {
+                return DropdownMenuItem(
+                  value: idx,
+                  child: Text('STAGE ${idx + 1}: ${bossList[idx].name}'),
+                );
+              }),
+              onChanged: (val) {
+                if (val != null) {
+                  setState(() {
+                    selectedBossIdx = val;
+                    enemyMaxHp = bossList[val].hp;
+                    enemyHp = enemyMaxHp;
+                  });
+                }
+              },
+            ),
+            const SizedBox(height: 10),
+          ],
           Expanded(
             child: Container(
               padding: const EdgeInsets.all(16),
@@ -713,10 +788,10 @@ class _BattleScreenState extends State<BattleScreen> {
                 children: [
                   Column(
                     children: [
-                      const Icon(Icons.adb, size: 60, color: Colors.redAccent),
-                      const Text('DEMON BOSS', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+                      Icon(Icons.adb, size: 60, color: currentBoss.color),
+                      Text(currentBoss.name, style: TextStyle(color: currentBoss.color, fontWeight: FontWeight.bold)),
                       const SizedBox(height: 4),
-                      LinearProgressIndicator(value: enemyHp / enemyMaxHp, color: Colors.redAccent, backgroundColor: Colors.white10),
+                      LinearProgressIndicator(value: enemyHp / enemyMaxHp, color: currentBoss.color, backgroundColor: Colors.white10),
                       Text('$enemyHp / $enemyMaxHp', style: const TextStyle(fontSize: 10, color: Colors.white54)),
                     ],
                   ),
@@ -796,6 +871,7 @@ class _ShopScreenState extends State<ShopScreen> {
     setState(() {
       playerGold -= 300;
       hpPotions++;
+      qShopDone = true;
     });
     widget.onStateChanged();
     _showMessage('Berhasil membeli 1x HP Potion!');
@@ -813,6 +889,7 @@ class _ShopScreenState extends State<ShopScreen> {
     setState(() {
       playerGold -= 1000;
       equipmentInventory.add(drawnEq);
+      qShopDone = true;
     });
     widget.onStateChanged();
 
@@ -845,6 +922,7 @@ class _ShopScreenState extends State<ShopScreen> {
     setState(() {
       playerGold -= 5000;
       playerGems += 500;
+      qShopDone = true;
     });
     widget.onStateChanged();
     _showMessage('Berhasil menukar 5000 Gold dengan 500 Gems!');
@@ -913,6 +991,70 @@ class _ShopScreenState extends State<ShopScreen> {
           style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFFD700)),
           onPressed: onTap,
           child: Text(price, style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 11)),
+        ),
+      ),
+    );
+  }
+}
+
+class QuestScreen extends StatefulWidget {
+  final VoidCallback onStateChanged;
+  const QuestScreen({super.key, required this.onStateChanged});
+
+  @override
+  State<QuestScreen> createState() => _QuestScreenState();
+}
+
+class _QuestScreenState extends State<QuestScreen> {
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('DAILY QUESTS', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+          const SizedBox(height: 16),
+          _buildQuestCard(
+            title: 'Lakukan 1x Summon',
+            reward: '💎 100 Gems',
+            isDone: qSummonDone,
+          ),
+          const SizedBox(height: 12),
+          _buildQuestCard(
+            title: 'Menangkan 1x Battle',
+            reward: '💰 500 Gold',
+            isDone: qBattleDone,
+          ),
+          const SizedBox(height: 12),
+          _buildQuestCard(
+            title: 'Beli 1 Item di Shop',
+            reward: '🧪 1x HP Potion',
+            isDone: qShopDone,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuestCard({required String title, required String reward, required bool isDone}) {
+    return Card(
+      color: const Color(0xFF16122C),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: isDone ? Colors.greenAccent : Colors.white12)),
+      child: ListTile(
+        leading: Icon(isDone ? Icons.check_circle : Icons.radio_button_unchecked, color: isDone ? Colors.greenAccent : Colors.white38),
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+        subtitle: Text('Hadiah: $reward', style: const TextStyle(color: Colors.amber, fontSize: 11)),
+        trailing: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            color: isDone ? Colors.green.withOpacity(0.2) : Colors.white10,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Text(
+            isDone ? 'SELESAI' : 'BELUM',
+            style: TextStyle(color: isDone ? Colors.greenAccent : Colors.white38, fontWeight: FontWeight.bold, fontSize: 10),
+          ),
         ),
       ),
     );
