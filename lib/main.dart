@@ -31,6 +31,32 @@ class GachaRPGApp extends StatelessWidget {
 // ----------------------------------------------------
 enum Rarity { SSR, SR, R }
 
+class Equipment {
+  final String id;
+  final String name;
+  final String type; // 'Weapon' or 'Armor'
+  final int bonusAtk;
+  final int bonusHp;
+  final Rarity rarity;
+
+  Equipment({
+    required this.id,
+    required this.name,
+    required this.type,
+    required this.bonusAtk,
+    required this.bonusHp,
+    required this.rarity,
+  });
+
+  Color get rarityColor {
+    switch (rarity) {
+      case Rarity.SSR: return const Color(0xFFFFD700);
+      case Rarity.SR: return const Color(0xFFA020F0);
+      case Rarity.R: return const Color(0xFF1E90FF);
+    }
+  }
+}
+
 class HeroItem {
   final String id;
   final String name;
@@ -41,6 +67,8 @@ class HeroItem {
   int baseHp;
   int baseAtk;
   int baseDef;
+  Equipment? equippedWeapon;
+  Equipment? equippedArmor;
 
   HeroItem({
     required this.id,
@@ -52,21 +80,20 @@ class HeroItem {
     required this.baseHp,
     required this.baseAtk,
     required this.baseDef,
+    this.equippedWeapon,
+    this.equippedArmor,
   });
 
-  int get currentHp => baseHp + ((level - 1) * 150);
-  int get currentAtk => baseAtk + ((level - 1) * 35);
+  int get currentHp => baseHp + ((level - 1) * 150) + (equippedArmor?.bonusHp ?? 0) + (equippedWeapon?.bonusHp ?? 0);
+  int get currentAtk => baseAtk + ((level - 1) * 35) + (equippedWeapon?.bonusAtk ?? 0) + (equippedArmor?.bonusAtk ?? 0);
 
   String get rarityStr => rarity.name;
 
   Color get rarityColor {
     switch (rarity) {
-      case Rarity.SSR:
-        return const Color(0xFFFFD700);
-      case Rarity.SR:
-        return const Color(0xFFA020F0);
-      case Rarity.R:
-        return const Color(0xFF1E90FF);
+      case Rarity.SSR: return const Color(0xFFFFD700);
+      case Rarity.SR: return const Color(0xFFA020F0);
+      case Rarity.R: return const Color(0xFF1E90FF);
     }
   }
 
@@ -97,11 +124,22 @@ final List<HeroItem> allHeroesPool = [
   HeroItem(id: 'r_3', name: 'Scout Raven', title: 'Shadow Runner', rarity: Rarity.R, themeColor: const Color(0xFF4682B4), baseHp: 550, baseAtk: 120, baseDef: 60),
 ];
 
+final List<Equipment> equipmentPool = [
+  Equipment(id: 'eq_1', name: 'Excalibur', type: 'Weapon', bonusAtk: 200, bonusHp: 100, rarity: Rarity.SSR),
+  Equipment(id: 'eq_2', name: 'Aegis Shield', type: 'Armor', bonusAtk: 30, bonusHp: 600, rarity: Rarity.SSR),
+  Equipment(id: 'eq_3', name: 'Shadow Blade', type: 'Weapon', bonusAtk: 110, bonusHp: 0, rarity: Rarity.SR),
+  Equipment(id: 'eq_4', name: 'Dragon Scale Armor', type: 'Armor', bonusAtk: 20, bonusHp: 350, rarity: Rarity.SR),
+  Equipment(id: 'eq_5', name: 'Iron Sword', type: 'Weapon', bonusAtk: 50, bonusHp: 0, rarity: Rarity.R),
+  Equipment(id: 'eq_6', name: 'Leather Vest', type: 'Armor', bonusAtk: 0, bonusHp: 150, rarity: Rarity.R),
+];
+
 // STATE GLOBAL GAME
 int playerGems = 2000;
 int playerGold = 10000;
 int pityCounter = 0;
+int hpPotions = 3;
 List<HeroItem> playerInventory = [allHeroesPool[6].copy()];
+List<Equipment> equipmentInventory = [equipmentPool[4], equipmentPool[5]];
 
 // ----------------------------------------------------
 // MAIN HOME SCREEN
@@ -124,6 +162,7 @@ class _MainHomeScreenState extends State<MainHomeScreen> {
       SummonScreen(onStateChanged: _updateState),
       CollectionScreen(onStateChanged: _updateState),
       BattleScreen(onStateChanged: _updateState),
+      ShopScreen(onStateChanged: _updateState),
     ];
 
     return Scaffold(
@@ -133,14 +172,17 @@ class _MainHomeScreenState extends State<MainHomeScreen> {
         title: const Text('SHADOW LEGENDS', style: TextStyle(fontWeight: FontWeight.black, letterSpacing: 1.5, color: Colors.white)),
         actions: [
           _buildResourceChip(Icons.diamond, '$playerGems', const Color(0xFF00E5FF)),
-          const SizedBox(width: 8),
+          const SizedBox(width: 6),
           _buildResourceChip(Icons.monetization_on, '$playerGold', const Color(0xFFFFD700)),
-          const SizedBox(width: 16),
+          const SizedBox(width: 6),
+          _buildResourceChip(Icons.science, '$hpPotions', const Color(0xFF00FF7F)),
+          const SizedBox(width: 12),
         ],
       ),
       body: screens[_currentIndex],
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
+        type: BottomNavigationBarType.fixed,
         backgroundColor: const Color(0xFF140F2A),
         selectedItemColor: const Color(0xFFFFD700),
         unselectedItemColor: Colors.white38,
@@ -149,6 +191,7 @@ class _MainHomeScreenState extends State<MainHomeScreen> {
           BottomNavigationBarItem(icon: Icon(Icons.auto_awesome), label: 'Summon'),
           BottomNavigationBarItem(icon: Icon(Icons.shield), label: 'Heroes'),
           BottomNavigationBarItem(icon: Icon(Icons.sports_esports), label: 'Battle'),
+          BottomNavigationBarItem(icon: Icon(Icons.store), label: 'Shop'),
         ],
       ),
     );
@@ -156,7 +199,7 @@ class _MainHomeScreenState extends State<MainHomeScreen> {
 
   Widget _buildResourceChip(IconData icon, String value, Color color) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: Colors.black45,
         borderRadius: BorderRadius.circular(20),
@@ -164,9 +207,9 @@ class _MainHomeScreenState extends State<MainHomeScreen> {
       ),
       child: Row(
         children: [
-          Icon(icon, color: color, size: 16),
-          const SizedBox(width: 4),
-          Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white)),
+          Icon(icon, color: color, size: 14),
+          const SizedBox(width: 3),
+          Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Colors.white)),
         ],
       ),
     );
@@ -214,7 +257,7 @@ class _SummonScreenState extends State<SummonScreen> {
     int cost = count == 1 ? 160 : 1500;
     if (playerGems < cost) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Gems tidak cukup! Selesaikan Battle untuk mendapat Gems.'), backgroundColor: Colors.redAccent),
+        const SnackBar(content: Text('Gems tidak cukup! Selesaikan Battle atau beli di Shop.'), backgroundColor: Colors.redAccent),
       );
       return;
     }
@@ -418,7 +461,7 @@ class _GachaRevealScreenState extends State<GachaRevealScreen> {
 }
 
 // ----------------------------------------------------
-// 2. HERO COLLECTION & LEVEL UP
+// 2. HERO COLLECTION & EQUIPMENT MANAGEMENT
 // ----------------------------------------------------
 class CollectionScreen extends StatefulWidget {
   final VoidCallback onStateChanged;
@@ -443,6 +486,57 @@ class _CollectionScreenState extends State<CollectionScreen> {
     widget.onStateChanged();
   }
 
+  void _showEquipmentPicker(HeroItem hero, String type) {
+    final availableEq = equipmentInventory.where((e) => e.type == type).toList();
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF16122C),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) {
+        return Container(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('PILIH ${type.toUpperCase()}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.amber)),
+              const SizedBox(height: 10),
+              if (availableEq.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 20),
+                  child: Text('Tidak ada perlengkapan tersedia. Beli Chest di Shop!', style: TextStyle(color: Colors.white54)),
+                )
+              else
+                Flexible(
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: availableEq.length,
+                    itemBuilder: (ctx, i) {
+                      final eq = availableEq[i];
+                      return ListTile(
+                        leading: Icon(type == 'Weapon' ? Icons.shield : Icons.security, color: eq.rarityColor),
+                        title: Text(eq.name, style: TextStyle(color: eq.rarityColor, fontWeight: FontWeight.bold)),
+                        subtitle: Text('+${eq.bonusAtk} ATK | +${eq.bonusHp} HP', style: const TextStyle(color: Colors.white60, fontSize: 12)),
+                        onTap: () {
+                          setState(() {
+                            if (type == 'Weapon') hero.equippedWeapon = eq;
+                            if (type == 'Armor') hero.equippedArmor = eq;
+                          });
+                          widget.onStateChanged();
+                          Navigator.pop(context);
+                        },
+                      );
+                    },
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -461,16 +555,55 @@ class _CollectionScreenState extends State<CollectionScreen> {
 
                 return Card(
                   color: const Color(0xFF16122C),
-                  margin: const EdgeInsets.only(bottom: 10),
+                  margin: const EdgeInsets.only(bottom: 12),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: hero.rarityColor.withOpacity(0.4))),
-                  child: ListTile(
-                    leading: CircleAvatar(backgroundColor: hero.themeColor, child: Text(hero.name[0], style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold))),
-                    title: Text('${hero.name} (Lvl ${hero.level})', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
-                    subtitle: Text('HP: ${hero.currentHp} | ATK: ${hero.currentAtk}', style: const TextStyle(color: Colors.white54, fontSize: 11)),
-                    trailing: ElevatedButton(
-                      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFFD700)),
-                      onPressed: () => _levelUpHero(hero),
-                      child: Text('UP ($upgradeCost G)', style: const TextStyle(color: Colors.black, fontSize: 10, fontWeight: FontWeight.bold)),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12.0),
+                    child: Column(
+                      children: [
+                        Row(
+                          children: [
+                            CircleAvatar(backgroundColor: hero.themeColor, child: Text(hero.name[0], style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold))),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('${hero.name} (Lvl ${hero.level})', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                                  Text('HP: ${hero.currentHp} | ATK: ${hero.currentAtk}', style: const TextStyle(color: Colors.white70, fontSize: 11)),
+                                ],
+                              ),
+                            ),
+                            ElevatedButton(
+                              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFFD700)),
+                              onPressed: () => _levelUpHero(hero),
+                              child: Text('UP ($upgradeCost G)', style: const TextStyle(color: Colors.black, fontSize: 10, fontWeight: FontWeight.bold)),
+                            ),
+                          ],
+                        ),
+                        const Divider(color: Colors.white12, height: 20),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                style: OutlinedButton.styleFrom(side: BorderSide(color: hero.equippedWeapon?.rarityColor ?? Colors.white24)),
+                                icon: const Icon(Icons.fitness_center, size: 14),
+                                label: Text(hero.equippedWeapon?.name ?? 'Senjata', style: TextStyle(fontSize: 11, color: hero.equippedWeapon != null ? hero.equippedWeapon!.rarityColor : Colors.white54)),
+                                onPressed: () => _showEquipmentPicker(hero, 'Weapon'),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                style: OutlinedButton.styleFrom(side: BorderSide(color: hero.equippedArmor?.rarityColor ?? Colors.white24)),
+                                icon: const Icon(Icons.shield, size: 14),
+                                label: Text(hero.equippedArmor?.name ?? 'Armor', style: TextStyle(fontSize: 11, color: hero.equippedArmor != null ? hero.equippedArmor!.rarityColor : Colors.white54)),
+                                onPressed: () => _showEquipmentPicker(hero, 'Armor'),
+                              ),
+                            ),
+                          ],
+                        )
+                      ],
                     ),
                   ),
                 );
@@ -521,7 +654,7 @@ class _BattleScreenState extends State<BattleScreen> {
 
     final rand = Random();
     int dmg = activeHero!.currentAtk + rand.nextInt(40);
-    int enemyDmg = 70 + rand.nextInt(30);
+    int enemyDmg = 80 + rand.nextInt(30);
 
     setState(() {
       enemyHp = max(0, enemyHp - dmg);
@@ -544,6 +677,16 @@ class _BattleScreenState extends State<BattleScreen> {
         log = 'KALAH! Hero kamu gugur.';
       }
     });
+  }
+
+  void _usePotion() {
+    if (!inBattle || hpPotions <= 0) return;
+    setState(() {
+      hpPotions--;
+      playerHp = min(playerMaxHp, playerHp + 400);
+      log = 'Menggunakan HP Potion! +400 HP restored.';
+    });
+    widget.onStateChanged();
   }
 
   @override
@@ -600,10 +743,18 @@ class _BattleScreenState extends State<BattleScreen> {
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(backgroundColor: Colors.blueGrey),
                   onPressed: _startBattle,
-                  child: const Text('MULAI BATTLE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  child: const Text('MULAI', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                 ),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 8),
+              Expanded(
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+                  onPressed: inBattle && hpPotions > 0 ? _usePotion : null,
+                  child: Text('POTION ($hpPotions)', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11)),
+                ),
+              ),
+              const SizedBox(width: 8),
               Expanded(
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
@@ -614,6 +765,149 @@ class _BattleScreenState extends State<BattleScreen> {
             ],
           )
         ],
+      ),
+    );
+  }
+}
+
+// ----------------------------------------------------
+// 4. ITEM SHOP & TREASURE CHEST
+// ----------------------------------------------------
+class ShopScreen extends StatefulWidget {
+  final VoidCallback onStateChanged;
+  const ShopScreen({super.key, required this.onStateChanged});
+
+  @override
+  State<ShopScreen> createState() => _ShopScreenState();
+}
+
+class _ShopScreenState extends State<ShopScreen> {
+  void _buyPotion() {
+    if (playerGold < 300) {
+      _showMessage('Gold tidak cukup!');
+      return;
+    }
+    setState(() {
+      playerGold -= 300;
+      hpPotions++;
+    });
+    widget.onStateChanged();
+    _showMessage('Berhasil membeli 1x HP Potion!');
+  }
+
+  void _buyEquipmentChest() {
+    if (playerGold < 1000) {
+      _showMessage('Gold tidak cukup!');
+      return;
+    }
+
+    final rand = Random();
+    Equipment drawnEq = equipmentPool[rand.nextInt(equipmentPool.length)];
+
+    setState(() {
+      playerGold -= 1000;
+      equipmentInventory.add(drawnEq);
+    });
+    widget.onStateChanged();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF16122C),
+        title: const Text('EQUIPMENT UNLOCKED!', style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(drawnEq.type == 'Weapon' ? Icons.fitness_center : Icons.shield, color: drawnEq.rarityColor, size: 50),
+            const SizedBox(height: 10),
+            Text(drawnEq.name, style: TextStyle(color: drawnEq.rarityColor, fontWeight: FontWeight.bold, fontSize: 18)),
+            Text('${drawnEq.type} | +${drawnEq.bonusAtk} ATK | +${drawnEq.bonusHp} HP', style: const TextStyle(color: Colors.white70, fontSize: 12)),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK', style: TextStyle(color: Colors.amber))),
+        ],
+      ),
+    );
+  }
+
+  void _buyGemsPack() {
+    if (playerGold < 5000) {
+      _showMessage('Gold tidak cukup!');
+      return;
+    }
+    setState(() {
+      playerGold -= 5000;
+      playerGems += 500;
+    });
+    widget.onStateChanged();
+    _showMessage('Berhasil menukar 5000 Gold dengan 500 Gems!');
+  }
+
+  void _showMessage(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: Colors.amber));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('BLACKSMITH & SHOP', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+          const SizedBox(height: 16),
+          _buildShopCard(
+            title: 'HP Potion',
+            subtitle: 'Pemulih +400 HP saat pertempuran',
+            price: '300 Gold',
+            icon: Icons.science,
+            iconColor: Colors.greenAccent,
+            onTap: _buyPotion,
+          ),
+          const SizedBox(height: 12),
+          _buildShopCard(
+            title: 'Equipment Chest',
+            subtitle: 'Mendapatkan Senjata / Armor acak (R - SSR)',
+            price: '1000 Gold',
+            icon: Icons.card_giftcard,
+            iconColor: Colors.amber,
+            onTap: _buyEquipmentChest,
+          ),
+          const SizedBox(height: 12),
+          _buildShopCard(
+            title: 'Gems Pack (500 Gems)',
+            subtitle: 'Tukar Gold untuk menambah saldo Gems',
+            price: '5000 Gold',
+            icon: Icons.diamond,
+            iconColor: Colors.cyanAccent,
+            onTap: _buyGemsPack,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildShopCard({
+    required String title,
+    required String subtitle,
+    required String price,
+    required IconData icon,
+    required Color iconColor,
+    required VoidCallback onTap,
+  }) {
+    return Card(
+      color: const Color(0xFF16122C),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: iconColor.withOpacity(0.3))),
+      child: ListTile(
+        leading: Icon(icon, color: iconColor, size: 36),
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+        subtitle: Text(subtitle, style: const TextStyle(color: Colors.white54, fontSize: 11)),
+        trailing: ElevatedButton(
+          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFFD700)),
+          onPressed: onTap,
+          child: Text(price, style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 11)),
+        ),
       ),
     );
   }
