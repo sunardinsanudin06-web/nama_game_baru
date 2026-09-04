@@ -1,12 +1,620 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 
 void main() {
-  runApp(const MaterialApp(
-    debugShowCheckedModeBanner: false,
-    home: Scaffold(
-      body: Center(
-        child: Text('Game Baru Siap Dibuat!'),
+  runApp(const GachaRPGApp());
+}
+
+class GachaRPGApp extends StatelessWidget {
+  const GachaRPGApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      title: 'Shadow Legends Ultra',
+      theme: ThemeData.dark().copyWith(
+        scaffoldBackgroundColor: const Color(0xFF0A0814),
+        colorScheme: const ColorScheme.dark(
+          primary: Color(0xFFFFD700),
+          secondary: Color(0xFF00E5FF),
+          surface: Color(0xFF16122C),
+        ),
       ),
-    ),
-  ));
+      home: const MainHomeScreen(),
+    );
+  }
+}
+
+// ----------------------------------------------------
+// MODELS & DATABASE
+// ----------------------------------------------------
+enum Rarity { SSR, SR, R }
+
+class HeroItem {
+  final String id;
+  final String name;
+  final String title;
+  final Rarity rarity;
+  final Color themeColor;
+  int level;
+  int baseHp;
+  int baseAtk;
+  int baseDef;
+
+  HeroItem({
+    required this.id,
+    required this.name,
+    required this.title,
+    required this.rarity,
+    required this.themeColor,
+    this.level = 1,
+    required this.baseHp,
+    required this.baseAtk,
+    required this.baseDef,
+  });
+
+  int get currentHp => baseHp + ((level - 1) * 150);
+  int get currentAtk => baseAtk + ((level - 1) * 35);
+
+  String get rarityStr => rarity.name;
+
+  Color get rarityColor {
+    switch (rarity) {
+      case Rarity.SSR:
+        return const Color(0xFFFFD700);
+      case Rarity.SR:
+        return const Color(0xFFA020F0);
+      case Rarity.R:
+        return const Color(0xFF1E90FF);
+    }
+  }
+
+  HeroItem copy() {
+    return HeroItem(
+      id: id,
+      name: name,
+      title: title,
+      rarity: rarity,
+      themeColor: themeColor,
+      level: level,
+      baseHp: baseHp,
+      baseAtk: baseAtk,
+      baseDef: baseDef,
+    );
+  }
+}
+
+final List<HeroItem> allHeroesPool = [
+  HeroItem(id: 'ssr_1', name: 'Aurelia', title: 'Sun Empress', rarity: Rarity.SSR, themeColor: const Color(0xFFFFD700), baseHp: 1200, baseAtk: 280, baseDef: 150),
+  HeroItem(id: 'ssr_2', name: 'Ignis', title: 'Inferno Dragon', rarity: Rarity.SSR, themeColor: const Color(0xFFFF4500), baseHp: 1100, baseAtk: 320, baseDef: 120),
+  HeroItem(id: 'ssr_3', name: 'Void', title: 'Shadow Emperor', rarity: Rarity.SSR, themeColor: const Color(0xFF8A2BE2), baseHp: 1050, baseAtk: 350, baseDef: 110),
+  HeroItem(id: 'sr_1', name: 'Valerie', title: 'Frost Valkyrie', rarity: Rarity.SR, themeColor: const Color(0xFF00FFFF), baseHp: 850, baseAtk: 190, baseDef: 100),
+  HeroItem(id: 'sr_2', name: 'Kael', title: 'Thunder Warden', rarity: Rarity.SR, themeColor: const Color(0xFFFFE4B5), baseHp: 900, baseAtk: 180, baseDef: 120),
+  HeroItem(id: 'sr_3', name: 'Sylvia', title: 'Wind Ranger', rarity: Rarity.SR, themeColor: const Color(0xFF00FF7F), baseHp: 750, baseAtk: 210, baseDef: 80),
+  HeroItem(id: 'r_1', name: 'Iron Guard', title: 'Novice Defender', rarity: Rarity.R, themeColor: const Color(0xFF708090), baseHp: 600, baseAtk: 100, baseDef: 90),
+  HeroItem(id: 'r_2', name: 'Fire Apprentice', title: 'Mage Initiate', rarity: Rarity.R, themeColor: const Color(0xFFCD5C5C), baseHp: 500, baseAtk: 140, baseDef: 50),
+  HeroItem(id: 'r_3', name: 'Scout Raven', title: 'Shadow Runner', rarity: Rarity.R, themeColor: const Color(0xFF4682B4), baseHp: 550, baseAtk: 120, baseDef: 60),
+];
+
+// STATE GLOBAL GAME
+int playerGems = 2000;
+int playerGold = 10000;
+int pityCounter = 0;
+List<HeroItem> playerInventory = [allHeroesPool[6].copy()];
+
+// ----------------------------------------------------
+// MAIN HOME SCREEN
+// ----------------------------------------------------
+class MainHomeScreen extends StatefulWidget {
+  const MainHomeScreen({super.key});
+
+  @override
+  State<MainHomeScreen> createState() => _MainHomeScreenState();
+}
+
+class _MainHomeScreenState extends State<MainHomeScreen> {
+  int _currentIndex = 0;
+
+  void _updateState() => setState(() {});
+
+  @override
+  Widget build(BuildContext context) {
+    final screens = [
+      SummonScreen(onStateChanged: _updateState),
+      CollectionScreen(onStateChanged: _updateState),
+      BattleScreen(onStateChanged: _updateState),
+    ];
+
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF140F2A),
+        elevation: 6,
+        title: const Text('SHADOW LEGENDS', style: TextStyle(fontWeight: FontWeight.black, letterSpacing: 1.5, color: Colors.white)),
+        actions: [
+          _buildResourceChip(Icons.diamond, '$playerGems', const Color(0xFF00E5FF)),
+          const SizedBox(width: 8),
+          _buildResourceChip(Icons.monetization_on, '$playerGold', const Color(0xFFFFD700)),
+          const SizedBox(width: 16),
+        ],
+      ),
+      body: screens[_currentIndex],
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _currentIndex,
+        backgroundColor: const Color(0xFF140F2A),
+        selectedItemColor: const Color(0xFFFFD700),
+        unselectedItemColor: Colors.white38,
+        onTap: (index) => setState(() => _currentIndex = index),
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.auto_awesome), label: 'Summon'),
+          BottomNavigationBarItem(icon: Icon(Icons.shield), label: 'Heroes'),
+          BottomNavigationBarItem(icon: Icon(Icons.sports_esports), label: 'Battle'),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildResourceChip(IconData icon, String value, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.black45,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withOpacity(0.5)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: color, size: 16),
+          const SizedBox(width: 4),
+          Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white)),
+        ],
+      ),
+    );
+  }
+}
+
+// ----------------------------------------------------
+// 1. SUMMON SCREEN (GACHA)
+// ----------------------------------------------------
+class SummonScreen extends StatefulWidget {
+  final VoidCallback onStateChanged;
+  const SummonScreen({super.key, required this.onStateChanged});
+
+  @override
+  State<SummonScreen> createState() => _SummonScreenState();
+}
+
+class _SummonScreenState extends State<SummonScreen> {
+  final Random _random = Random();
+
+  HeroItem _rollHero() {
+    pityCounter++;
+    int roll = _random.nextInt(100);
+
+    if (pityCounter >= 10) {
+      pityCounter = 0;
+      var ssrList = allHeroesPool.where((h) => h.rarity == Rarity.SSR).toList();
+      return ssrList[_random.nextInt(ssrList.length)].copy();
+    }
+
+    if (roll < 5) {
+      pityCounter = 0;
+      var ssrList = allHeroesPool.where((h) => h.rarity == Rarity.SSR).toList();
+      return ssrList[_random.nextInt(ssrList.length)].copy();
+    } else if (roll < 30) {
+      var srList = allHeroesPool.where((h) => h.rarity == Rarity.SR).toList();
+      return srList[_random.nextInt(srList.length)].copy();
+    } else {
+      var rList = allHeroesPool.where((h) => h.rarity == Rarity.R).toList();
+      return rList[_random.nextInt(rList.length)].copy();
+    }
+  }
+
+  void _executeSummon(int count) {
+    int cost = count == 1 ? 160 : 1500;
+    if (playerGems < cost) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Gems tidak cukup! Selesaikan Battle untuk mendapat Gems.'), backgroundColor: Colors.redAccent),
+      );
+      return;
+    }
+
+    setState(() {
+      playerGems -= cost;
+    });
+
+    List<HeroItem> pulledHeroes = [];
+    for (int i = 0; i < count; i++) {
+      HeroItem drawn = _rollHero();
+      pulledHeroes.add(drawn);
+      playerInventory.add(drawn);
+    }
+
+    widget.onStateChanged();
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => GachaRevealScreen(results: pulledHeroes)),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        children: [
+          Expanded(
+            child: Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(24),
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF33145A), Color(0xFF120E29)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                border: Border.all(color: const Color(0xFFFFD700).withOpacity(0.5), width: 2),
+                boxShadow: [BoxShadow(color: const Color(0xFFFFD700).withOpacity(0.15), blurRadius: 20)],
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(color: const Color(0xFFFFD700), borderRadius: BorderRadius.circular(12)),
+                      child: const Text('SUMMON BANNER', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 11)),
+                    ),
+                    const SizedBox(height: 16),
+                    const Text('SUN EMPRESS AURELIA', style: TextStyle(fontSize: 26, fontWeight: FontWeight.black, color: Colors.white)),
+                    const Text('SSR Rate Up 5% | Garansi SSR di Pull ke-10', style: TextStyle(color: Colors.amberAccent, fontSize: 12)),
+                    const Spacer(),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Pity Progress:', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                        Text('$pityCounter / 10', style: const TextStyle(color: Color(0xFFFFD700), fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: LinearProgressIndicator(value: pityCounter / 10, color: const Color(0xFFFFD700), backgroundColor: Colors.white10, minHeight: 8),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF1E1A3A),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    side: const BorderSide(color: Color(0xFF00E5FF)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  ),
+                  onPressed: () => _executeSummon(1),
+                  child: const Column(
+                    children: [
+                      Text('1x SUMMON', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                      SizedBox(height: 4),
+                      Text('💎 160', style: TextStyle(color: Color(0xFF00E5FF), fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFFFD700),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  ),
+                  onPressed: () => _executeSummon(10),
+                  child: const Column(
+                    children: [
+                      Text('10x SUMMON', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black)),
+                      SizedBox(height: 4),
+                      Text('💎 1500', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          )
+        ],
+      ),
+    );
+  }
+}
+
+// ----------------------------------------------------
+// GACHA ANIMATION & REVEAL
+// ----------------------------------------------------
+class GachaRevealScreen extends StatefulWidget {
+  final List<HeroItem> results;
+  const GachaRevealScreen({super.key, required this.results});
+
+  @override
+  State<GachaRevealScreen> createState() => _GachaRevealScreenState();
+}
+
+class _GachaRevealScreenState extends State<GachaRevealScreen> {
+  bool _revealed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    Future.delayed(const Duration(seconds: 2), () {
+      if (mounted) setState(() => _revealed = true);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Center(
+        child: !_revealed
+            ? const Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(color: Color(0xFFFFD700)),
+                  SizedBox(height: 20),
+                  Text('MEMANGGIL HERO...', style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold, letterSpacing: 2)),
+                ],
+              )
+            : Padding(
+                padding: const EdgeInsets.all(20.0),
+                child: Column(
+                  children: [
+                    const SizedBox(height: 40),
+                    const Text('HASIL SUMMON', style: TextStyle(fontSize: 22, fontWeight: FontWeight.black, color: Colors.white)),
+                    const SizedBox(height: 20),
+                    Expanded(
+                      child: GridView.builder(
+                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, childAspectRatio: 0.85, crossAxisSpacing: 10, mainAxisSpacing: 10),
+                        itemCount: widget.results.length,
+                        itemBuilder: (ctx, i) {
+                          final hero = widget.results[i];
+                          return Container(
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF16122C),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: hero.rarityColor, width: 2),
+                            ),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                CircleAvatar(radius: 26, backgroundColor: hero.themeColor, child: Text(hero.name[0], style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold))),
+                                const SizedBox(height: 8),
+                                Text(hero.rarityStr, style: TextStyle(color: hero.rarityColor, fontWeight: FontWeight.black, fontSize: 12)),
+                                Text(hero.name, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                                Text(hero.title, style: const TextStyle(color: Colors.white54, fontSize: 10)),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFFD700), padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 12)),
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('AMBIL SEMUA', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+                    )
+                  ],
+                ),
+              ),
+      ),
+    );
+  }
+}
+
+// ----------------------------------------------------
+// 2. HERO COLLECTION & LEVEL UP
+// ----------------------------------------------------
+class CollectionScreen extends StatefulWidget {
+  final VoidCallback onStateChanged;
+  const CollectionScreen({super.key, required this.onStateChanged});
+
+  @override
+  State<CollectionScreen> createState() => _CollectionScreenState();
+}
+
+class _CollectionScreenState extends State<CollectionScreen> {
+  void _levelUpHero(HeroItem hero) {
+    int cost = hero.level * 200;
+    if (playerGold < cost) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Gold tidak cukup!'), backgroundColor: Colors.redAccent));
+      return;
+    }
+
+    setState(() {
+      playerGold -= cost;
+      hero.level++;
+    });
+    widget.onStateChanged();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('KOLEKSI HERO (${playerInventory.length})', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+          const SizedBox(height: 12),
+          Expanded(
+            child: ListView.builder(
+              itemCount: playerInventory.length,
+              itemBuilder: (ctx, i) {
+                final hero = playerInventory[i];
+                int upgradeCost = hero.level * 200;
+
+                return Card(
+                  color: const Color(0xFF16122C),
+                  margin: const EdgeInsets.only(bottom: 10),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: hero.rarityColor.withOpacity(0.4))),
+                  child: ListTile(
+                    leading: CircleAvatar(backgroundColor: hero.themeColor, child: Text(hero.name[0], style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold))),
+                    title: Text('${hero.name} (Lvl ${hero.level})', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                    subtitle: Text('HP: ${hero.currentHp} | ATK: ${hero.currentAtk}', style: const TextStyle(color: Colors.white54, fontSize: 11)),
+                    trailing: ElevatedButton(
+                      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFFD700)),
+                      onPressed: () => _levelUpHero(hero),
+                      child: Text('UP ($upgradeCost G)', style: const TextStyle(color: Colors.black, fontSize: 10, fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ----------------------------------------------------
+// 3. TURN-BASED BATTLE
+// ----------------------------------------------------
+class BattleScreen extends StatefulWidget {
+  final VoidCallback onStateChanged;
+  const BattleScreen({super.key, required this.onStateChanged});
+
+  @override
+  State<BattleScreen> createState() => _BattleScreenState();
+}
+
+class _BattleScreenState extends State<BattleScreen> {
+  HeroItem? activeHero;
+  int enemyHp = 1500;
+  int enemyMaxHp = 1500;
+  int playerHp = 1000;
+  int playerMaxHp = 1000;
+  bool inBattle = false;
+  String log = 'Siapkan Hero kamu untuk bertarung!';
+
+  void _startBattle() {
+    if (playerInventory.isEmpty) return;
+    setState(() {
+      activeHero = playerInventory.first;
+      playerMaxHp = activeHero!.currentHp;
+      playerHp = playerMaxHp;
+      enemyMaxHp = 1500;
+      enemyHp = enemyMaxHp;
+      inBattle = true;
+      log = 'Pertempuran Dimulai!';
+    });
+  }
+
+  void _attack() {
+    if (!inBattle || activeHero == null) return;
+
+    final rand = Random();
+    int dmg = activeHero!.currentAtk + rand.nextInt(40);
+    int enemyDmg = 70 + rand.nextInt(30);
+
+    setState(() {
+      enemyHp = max(0, enemyHp - dmg);
+      log = '${activeHero!.name} menyerang Musuh sebesar $dmg DMG!';
+
+      if (enemyHp <= 0) {
+        inBattle = false;
+        playerGems += 200;
+        playerGold += 500;
+        log = 'MENANG! Kamu mendapat 200 Gems & 500 Gold!';
+        widget.onStateChanged();
+        return;
+      }
+
+      playerHp = max(0, playerHp - enemyDmg);
+      log += '\nMusuh membalas $enemyDmg DMG!';
+
+      if (playerHp <= 0) {
+        inBattle = false;
+        log = 'KALAH! Hero kamu gugur.';
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        children: [
+          Expanded(
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(color: const Color(0xFF16122C), borderRadius: BorderRadius.circular(20)),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  Column(
+                    children: [
+                      const Icon(Icons.adb, size: 60, color: Colors.redAccent),
+                      const Text('DEMON BOSS', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 4),
+                      LinearProgressIndicator(value: enemyHp / enemyMaxHp, color: Colors.redAccent, backgroundColor: Colors.white10),
+                      Text('$enemyHp / $enemyMaxHp', style: const TextStyle(fontSize: 10, color: Colors.white54)),
+                    ],
+                  ),
+                  const Divider(color: Colors.white12),
+                  if (activeHero != null)
+                    Column(
+                      children: [
+                        CircleAvatar(backgroundColor: activeHero!.themeColor, child: Text(activeHero!.name[0], style: const TextStyle(color: Colors.black))),
+                        Text('${activeHero!.name} (Lvl ${activeHero!.level})', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 4),
+                        LinearProgressIndicator(value: playerHp / playerMaxHp, color: Colors.greenAccent, backgroundColor: Colors.white10),
+                        Text('$playerHp / $playerMaxHp', style: const TextStyle(fontSize: 10, color: Colors.white54)),
+                      ],
+                    )
+                  else
+                    const Text('Tekan MULAI BATTLE', style: TextStyle(color: Colors.white38)),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Container(
+            height: 60,
+            width: double.infinity,
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(color: Colors.black38, borderRadius: BorderRadius.circular(10)),
+            child: Center(child: Text(log, textAlign: TextAlign.center, style: const TextStyle(color: Colors.amber, fontSize: 11, fontWeight: FontWeight.bold))),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.blueGrey),
+                  onPressed: _startBattle,
+                  child: const Text('MULAI BATTLE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+                  onPressed: inBattle ? _attack : null,
+                  child: const Text('SERANG!', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ],
+          )
+        ],
+      ),
+    );
+  }
 }
