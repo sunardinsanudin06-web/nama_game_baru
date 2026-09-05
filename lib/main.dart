@@ -228,7 +228,7 @@ class _MainHomeScreenState extends State<MainHomeScreen> {
       appBar: AppBar(
         backgroundColor: const Color(0xFF140F2A),
         elevation: 6,
-        title: const Text('SHADOW LEGENDS', style: TextStyle(fontWeight: FontWeight.black, letterSpacing: 1.5, color: Colors.white)),
+        title: const Text('SHADOW LEGENDS', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.5, color: Colors.white)),
         actions: [
           _buildResourceChip(Icons.diamond, '$playerGems', const Color(0xFF00E5FF)),
           const SizedBox(width: 6),
@@ -368,7 +368,7 @@ class _SummonScreenState extends State<SummonScreen> {
                       child: const Text('SUMMON BANNER', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 11)),
                     ),
                     const SizedBox(height: 16),
-                    const Text('SUN EMPRESS AURELIA', style: TextStyle(fontSize: 26, fontWeight: FontWeight.black, color: Colors.white)),
+                    const Text('SUN EMPRESS AURELIA', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: Colors.white)),
                     const Text('SSR Rate Up 5% | Garansi SSR di Pull ke-10', style: TextStyle(color: Colors.amberAccent, fontSize: 12)),
                     const Spacer(),
                     Row(
@@ -473,7 +473,7 @@ class _GachaRevealScreenState extends State<GachaRevealScreen> {
                 child: Column(
                   children: [
                     const SizedBox(height: 40),
-                    const Text('HASIL SUMMON', style: TextStyle(fontSize: 22, fontWeight: FontWeight.black, color: Colors.white)),
+                    const Text('HASIL SUMMON', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.white)),
                     const SizedBox(height: 20),
                     Expanded(
                       child: GridView.builder(
@@ -492,7 +492,7 @@ class _GachaRevealScreenState extends State<GachaRevealScreen> {
                               children: [
                                 CircleAvatar(radius: 26, backgroundColor: hero.themeColor, child: Text(hero.name[0], style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold))),
                                 const SizedBox(height: 8),
-                                Text(hero.rarityStr, style: TextStyle(color: hero.rarityColor, fontWeight: FontWeight.black, fontSize: 12)),
+                                Text(hero.rarityStr, style: TextStyle(color: hero.rarityColor, fontWeight: FontWeight.w900, fontSize: 12)),
                                 Text(hero.name, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
                                 Text(hero.title, style: const TextStyle(color: Colors.white54, fontSize: 10)),
                               ],

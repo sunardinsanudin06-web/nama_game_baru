@@ -12,11 +12,11 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
-          java-version: '21'
+          java-version: '17'
       - uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
-      - run: flutter create . --platforms=android
+      - run: flutter create . --org com.example --platforms=android
       - run: yes | flutter doctor --android-licenses || true
       - run: flutter pub get
       - run: flutter build apk --debug
